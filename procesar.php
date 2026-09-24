@@ -91,3 +91,30 @@ if ($xlsx->save($outputFile)) {
 } else {
     echo "✗ Error al guardar el archivo Excel.\n";
 }
+
+// Generar archivos de texto separados
+$outputDir = __DIR__ . '/output';
+if (!is_dir($outputDir)) {
+    mkdir($outputDir, 0777, true);
+}
+
+// 1. emitidos.txt (Cheques)
+$chequesDocs = $db->getDocumentosPorTipo('CHEQUE');
+$chequesLines = [];
+foreach ($chequesDocs as $doc) {
+    $chequesLines[] = Parsers::toEmitidosLine($doc);
+}
+$chequesFile = $outputDir . '/emitidos.txt';
+file_put_contents($chequesFile, implode("\r\n", $chequesLines) . "\r\n");
+echo "✓ Archivo de Cheques TXT generado: {$chequesFile} (" . count($chequesLines) . " líneas)\n";
+
+// 2. emitidos_spei.txt (Recibos)
+$recibosDocs = $db->getDocumentosPorTipo('RECIBO');
+$recibosLines = [];
+foreach ($recibosDocs as $doc) {
+    $recibosLines[] = Parsers::toEmitidosLine($doc);
+}
+$speiFile = $outputDir . '/emitidos_spei.txt';
+file_put_contents($speiFile, implode("\r\n", $recibosLines) . "\r\n");
+echo "✓ Archivo SPEI / Recibos TXT generado: {$speiFile} (" . count($recibosLines) . " líneas)\n";
+

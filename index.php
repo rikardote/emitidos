@@ -146,13 +146,18 @@ $recibosList = $db->getDocumentosPorTipo('RECIBO');
                     <p class="text-xs text-indigo-200">Segmentación de Cheques, Recibos y Exportación Excel</p>
                 </div>
             </div>
-            <div class="flex items-center gap-3">
-                <a href="export.php" class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm px-4 py-2.5 rounded-lg shadow-sm transition">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    Descargar Excel
+            <div class="flex flex-wrap items-center gap-2">
+                <a href="export.php?formato=txt&tipo=cheques" title="Descargar archivo de texto emitidos.txt solo con cheques" class="inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-500 text-white font-medium text-xs px-3.5 py-2 rounded-lg shadow-sm transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    emitidos.txt (Cheques)
                 </a>
-                <a href="export.php?detalle=1" title="Incluye columnas de empleado, beneficiaria y fecha" class="inline-flex items-center gap-2 bg-indigo-700 hover:bg-indigo-600 text-white font-medium text-sm px-4 py-2.5 rounded-lg shadow-sm transition">
-                    Excel Detallado
+                <a href="export.php?formato=txt&tipo=recibos" title="Descargar archivo de texto emitidos_spei.txt solo con recibos" class="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs px-3.5 py-2 rounded-lg shadow-sm transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    emitidos_spei.txt (Recibos)
+                </a>
+                <a href="export.php?formato=xlsx" title="Descargar Excel con pestañas separadas" class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs px-3.5 py-2 rounded-lg shadow-sm transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    Excel (.xlsx)
                 </a>
             </div>
         </div>
@@ -215,6 +220,67 @@ $recibosList = $db->getDocumentosPorTipo('RECIBO');
                     <div class="text-lg font-semibold text-emerald-600">$<?= number_format($totalMonto, 2) ?></div>
                 </div>
                 <p class="text-xs text-slate-400 mt-2">Base de datos SQLite activa</p>
+            </div>
+        </div>
+
+        <!-- Panel de Descarga de Archivos Separados -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <h2 class="text-base font-bold text-slate-800 mb-2 flex items-center gap-2">
+                <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                Descarga de Archivos Generados
+            </h2>
+            <p class="text-xs text-slate-500 mb-5">Descarga los archivos ya segmentados en texto plano (.txt de 86 caracteres) o el reporte en Excel (.xlsx).</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- 1. TXT Cheques -->
+                <div class="p-4 rounded-xl border border-amber-200 bg-amber-50/50 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="font-bold text-amber-900 text-sm">emitidos.txt</span>
+                            <span class="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded font-bold">Cheques (4 dígitos)</span>
+                        </div>
+                        <p class="text-xs text-amber-800/80 mb-4">Archivo de texto con formato estándar de 86 caracteres con únicamente cheques.</p>
+                    </div>
+                    <a href="export.php?formato=txt&tipo=cheques" class="inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs py-2.5 px-4 rounded-lg shadow-sm transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        Descargar emitidos.txt
+                    </a>
+                </div>
+
+                <!-- 2. TXT Recibos -->
+                <div class="p-4 rounded-xl border border-blue-200 bg-blue-50/50 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="font-bold text-blue-900 text-sm">emitidos_spei.txt</span>
+                            <span class="text-[10px] bg-blue-200 text-blue-900 px-2 py-0.5 rounded font-bold">Recibos SPEI (7 dígitos)</span>
+                        </div>
+                        <p class="text-xs text-blue-800/80 mb-4">Archivo de texto con formato estándar de 86 caracteres con únicamente recibos SPEI.</p>
+                    </div>
+                    <a href="export.php?formato=txt&tipo=recibos" class="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs py-2.5 px-4 rounded-lg shadow-sm transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        Descargar emitidos_spei.txt
+                    </a>
+                </div>
+
+                <!-- 3. Excel -->
+                <div class="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="font-bold text-emerald-900 text-sm">Libro Excel (.xlsx)</span>
+                            <span class="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-bold">2 Pestañas</span>
+                        </div>
+                        <p class="text-xs text-emerald-800/80 mb-4">Pestaña "Cheques" y pestaña "Recibos", cada una con Cuenta, Documento y Monto.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <a href="export.php?formato=xlsx" class="flex-1 inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs py-2.5 px-3 rounded-lg shadow-sm transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                            Descargar Excel
+                        </a>
+                        <a href="export.php?formato=xlsx&detalle=1" title="Incluye columnas con nombre de trabajador/beneficiario y fechas" class="inline-flex items-center justify-center bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-semibold text-xs py-2.5 px-3 rounded-lg transition">
+                            Detallado
+                        </a>
+                    </div>
+                </div>
             </div>
         </div>
 

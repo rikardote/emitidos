@@ -46,8 +46,13 @@ php procesar.php
 
 El script procesará los registros, creará la base de datos `nomina.db` y generará `reporte_nomina.xlsx`.
 
-## Estructura del Excel generado
+## Archivos Generados
 
+### 1. Archivos de Texto (.txt de 86 caracteres)
+- **`emitidos.txt`**: Contiene únicamente las líneas correspondientes a **Cheques** (4 dígitos).
+- **`emitidos_spei.txt`**: Contiene únicamente las líneas correspondientes a **Recibos SPEI** (7 dígitos).
+
+### 2. Libro Excel (.xlsx)
 - **Pestaña 1 ("Cheques")**:
   - Columna A: Cuenta
   - Columna B: Cheque
@@ -56,3 +61,4 @@ El script procesará los registros, creará la base de datos `nomina.db` y gener
   - Columna A: Cuenta
   - Columna B: Recibo
   - Columna C: Monto
+

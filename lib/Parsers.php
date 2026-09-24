@@ -65,6 +65,7 @@ class Parsers
                 'fecha_emision' => $fecha,
                 'numero_persona' => $numEmp,
                 'nombre_persona' => $trabajador,
+                'linea_original' => $line,
             ];
         }
 
@@ -118,6 +119,7 @@ class Parsers
                 'fecha_emision' => $fecha,
                 'numero_persona' => $numBeneficiaria,
                 'nombre_persona' => $beneficiaria,
+                'linea_original' => $line,
             ];
         }
 
@@ -172,4 +174,46 @@ class Parsers
         }
         return $raw;
     }
+
+    /**
+     * Convierte un registro al formato estándar de 86 caracteres de emitidos.txt
+     */
+    public static function toEmitidosLine(array $doc): string
+    {
+        // Si ya viene con su línea original válida de 86 caracteres, la preservamos idéntica
+        if (!empty($doc['linea_original']) && strlen(rtrim($doc['linea_original'], "\r\n")) === 86) {
+            return rtrim($doc['linea_original'], "\r\n");
+        }
+
+        // Cuenta (9 caracteres)
+        $cuenta = substr(str_pad(trim((string)($doc['cuenta'] ?: self::CUENTA_CONSTANTE)), 9, ' '), 0, 9);
+
+        // Documento / Cheque / Recibo (10 caracteres con ceros a la izquierda)
+        $numDoc = str_pad(ltrim((string)$doc['numero_documento'], '0'), 10, '0', STR_PAD_LEFT);
+
+        // Monto (14 caracteres con ceros a la izquierda, últimos 2 centavos)
+        $montoCentavos = (int)round(((float)$doc['monto']) * 100);
+        $montoStr = str_pad((string)$montoCentavos, 14, '0', STR_PAD_LEFT);
+
+        // Fecha (6 caracteres DDMMAA)
+        $fecha = preg_replace('/\D/', '', (string)($doc['fecha_emision'] ?? ''));
+        if (strlen($fecha) === 8) {
+            // DDMMYYYY -> DDMMAA
+            $fecha = substr($fecha, 0, 4) . substr($fecha, 6, 2);
+        }
+        $fechaStr = str_pad(substr($fecha, 0, 6), 6, '0', STR_PAD_LEFT);
+
+        // Nombre de trabajador o beneficiaria (40 caracteres rellenados con espacios)
+        $nombre = substr(str_pad(trim((string)($doc['nombre_persona'] ?? '')), 40, ' '), 0, 40);
+
+        // Empleado o beneficiaria (7 caracteres, anteponiendo '3' si no lo tiene)
+        $numPersona = trim((string)($doc['numero_persona'] ?? ''));
+        if (!empty($numPersona) && !str_starts_with($numPersona, '3')) {
+            $numPersona = '3' . $numPersona;
+        }
+        $numPersonaStr = substr(str_pad($numPersona, 7, ' '), 0, 7);
+
+        return $cuenta . $numDoc . $montoStr . $fechaStr . $nombre . $numPersonaStr;
+    }
 }
+

@@ -20,4 +20,5 @@
 .DS_Store
 Thumbs.db
 /tmp/
+/output/
 /vendor/

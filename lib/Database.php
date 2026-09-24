@@ -46,6 +46,7 @@ class Database
                 fecha_emision TEXT,
                 numero_persona TEXT,
                 nombre_persona TEXT,
+                linea_original TEXT,
                 creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -53,6 +54,12 @@ class Database
             CREATE INDEX IF NOT EXISTS idx_lote ON documentos(lote_id);
             CREATE INDEX IF NOT EXISTS idx_num_doc ON documentos(numero_documento);
         ');
+
+        try {
+            $this->pdo->exec('ALTER TABLE documentos ADD COLUMN linea_original TEXT');
+        } catch (Throwable $e) {
+            // Ya existe la columna
+        }
     }
 
     public function insertDocumento(array $data): void
@@ -60,10 +67,10 @@ class Database
         $stmt = $this->pdo->prepare('
             INSERT INTO documentos (
                 lote_id, archivo_origen, tipo, cuenta, numero_documento,
-                monto, fecha_emision, numero_persona, nombre_persona
+                monto, fecha_emision, numero_persona, nombre_persona, linea_original
             ) VALUES (
                 :lote_id, :archivo_origen, :tipo, :cuenta, :numero_documento,
-                :monto, :fecha_emision, :numero_persona, :nombre_persona
+                :monto, :fecha_emision, :numero_persona, :nombre_persona, :linea_original
             )
         ');
         $stmt->execute([
@@ -75,7 +82,8 @@ class Database
             ':monto' => $data['monto'],
             ':fecha_emision' => $data['fecha_emision'] ?? '',
             ':numero_persona' => $data['numero_persona'] ?? '',
-            ':nombre_persona' => $data['nombre_persona'] ?? ''
+            ':nombre_persona' => $data['nombre_persona'] ?? '',
+            ':linea_original' => $data['linea_original'] ?? ''
         ]);
     }
 
@@ -110,16 +118,48 @@ class Database
         return $summary;
     }
 
-    public function getDocumentosPorTipo(string $tipo): array
+    public function getDocumentosPorTipo(string $tipo, ?string $archivoOrigen = null): array
     {
-        $stmt = $this->pdo->prepare('
-            SELECT cuenta, numero_documento, monto, fecha_emision, numero_persona, nombre_persona, archivo_origen
-            FROM documentos
-            WHERE tipo = :tipo
-            ORDER BY id ASC
-        ');
-        $stmt->execute([':tipo' => $tipo]);
+        if ($archivoOrigen !== null) {
+            $stmt = $this->pdo->prepare('
+                SELECT cuenta, numero_documento, monto, fecha_emision, numero_persona, nombre_persona, archivo_origen, linea_original
+                FROM documentos
+                WHERE tipo = :tipo AND archivo_origen = :archivo_origen
+                ORDER BY id ASC
+            ');
+            $stmt->execute([':tipo' => $tipo, ':archivo_origen' => $archivoOrigen]);
+        } else {
+            $stmt = $this->pdo->prepare('
+                SELECT cuenta, numero_documento, monto, fecha_emision, numero_persona, nombre_persona, archivo_origen, linea_original
+                FROM documentos
+                WHERE tipo = :tipo
+                ORDER BY id ASC
+            ');
+            $stmt->execute([':tipo' => $tipo]);
+        }
         return $stmt->fetchAll();
+    }
+
+    public function getLineasOriginalesPorTipo(string $tipo, ?string $archivoOrigen = null): array
+    {
+        if ($archivoOrigen !== null) {
+            $stmt = $this->pdo->prepare('
+                SELECT linea_original
+                FROM documentos
+                WHERE tipo = :tipo AND archivo_origen = :archivo_origen AND linea_original IS NOT NULL AND linea_original != ""
+                ORDER BY id ASC
+            ');
+            $stmt->execute([':tipo' => $tipo, ':archivo_origen' => $archivoOrigen]);
+        } else {
+            $stmt = $this->pdo->prepare('
+                SELECT linea_original
+                FROM documentos
+                WHERE tipo = :tipo AND linea_original IS NOT NULL AND linea_original != ""
+                ORDER BY id ASC
+            ');
+            $stmt->execute([':tipo' => $tipo]);
+        }
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
     public function getUltimos(int $limit = 50): array
