@@ -63,8 +63,8 @@ class Parsers
                 'numero_documento' => $cleanDoc,
                 'monto' => $monto,
                 'fecha_emision' => $fecha,
-                'numero_persona' => $numEmp,
-                'nombre_persona' => $trabajador,
+                'numero_empleado' => $numEmp,
+                'nombre_empleado' => $trabajador,
                 'linea_original' => $line,
             ];
         }
@@ -92,15 +92,11 @@ class Parsers
             }
 
             $fecha = trim($cols[0] ?? '');
-            $docRaw = trim($cols[1] ?? '');
-            $cleanDoc = ltrim($docRaw, '0');
-            if ($cleanDoc === '') {
-                $cleanDoc = '0';
+            $chequeRaw = trim($cols[1] ?? '');
+            $cleanCheque = ltrim($chequeRaw, '0');
+            if ($cleanCheque === '') {
+                $cleanCheque = '0';
             }
-
-            // Diferenciación de tipo por longitud (4 dígitos = cheque, 7 dígitos = recibo)
-            $len = strlen($cleanDoc);
-            $tipo = ($len <= 4) ? 'CHEQUE' : 'RECIBO';
 
             // Monto (últimos 2 dígitos centavos)
             $montoRaw = trim($cols[2] ?? '0');
@@ -111,14 +107,12 @@ class Parsers
 
             $records[] = [
                 'lote_id' => $loteId,
-                'archivo_origen' => $filename,
-                'tipo' => $tipo,
                 'cuenta' => self::CUENTA_CONSTANTE,
-                'numero_documento' => $cleanDoc,
+                'cheque' => $cleanCheque,
                 'monto' => $monto,
                 'fecha_emision' => $fecha,
-                'numero_persona' => $numBeneficiaria,
-                'nombre_persona' => $beneficiaria,
+                'numero_beneficiaria' => $numBeneficiaria,
+                'beneficiaria' => $beneficiaria,
                 'linea_original' => $line,
             ];
         }
@@ -203,11 +197,11 @@ class Parsers
         }
         $fechaStr = str_pad(substr($fecha, 0, 6), 6, '0', STR_PAD_LEFT);
 
-        // Nombre de trabajador o beneficiaria (40 caracteres rellenados con espacios)
-        $nombre = substr(str_pad(trim((string)($doc['nombre_persona'] ?? '')), 40, ' '), 0, 40);
+        // Nombre de trabajador (40 caracteres rellenados con espacios)
+        $nombre = substr(str_pad(trim((string)($doc['nombre_empleado'] ?? $doc['nombre_persona'] ?? '')), 40, ' '), 0, 40);
 
-        // Empleado o beneficiaria (7 caracteres, anteponiendo '3' si no lo tiene)
-        $numPersona = trim((string)($doc['numero_persona'] ?? ''));
+        // Empleado (7 caracteres, anteponiendo '3' si no lo tiene)
+        $numPersona = trim((string)($doc['numero_empleado'] ?? $doc['numero_persona'] ?? ''));
         if (!empty($numPersona) && !str_starts_with($numPersona, '3')) {
             $numPersona = '3' . $numPersona;
         }

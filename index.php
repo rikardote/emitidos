@@ -18,32 +18,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $messageType = 'success';
     } elseif ($action === 'upload') {
         $replace = isset($_POST['replace_data']) && $_POST['replace_data'] === '1';
-        if ($replace) {
-            $db->clearAll();
-        }
-
         $loteId = 'LOTE_' . date('Ymd_His');
         $totalEmitidos = 0;
         $totalLibera = 0;
 
         $db->getPdo()->beginTransaction();
         try {
-            // Archivo 1: Emitidos
+            // Archivo 1: Emitidos (Nómina)
             if (isset($_FILES['file_emitidos']) && $_FILES['file_emitidos']['error'] === UPLOAD_ERR_OK) {
+                if ($replace) {
+                    $db->clearEmitidos();
+                }
                 $content = file_get_contents($_FILES['file_emitidos']['tmp_name']);
                 $records = Parsers::parseEmitidos($content, $loteId, $_FILES['file_emitidos']['name']);
                 foreach ($records as $r) {
-                    $db->insertDocumento($r);
+                    $db->insertEmitido($r);
                 }
                 $totalEmitidos = count($records);
             }
 
-            // Archivo 2: Libera Pensión (opcional)
+            // Archivo 2: Libera Pensión (Independiente)
             if (isset($_FILES['file_libera']) && $_FILES['file_libera']['error'] === UPLOAD_ERR_OK) {
+                if ($replace) {
+                    $db->clearPensiones();
+                }
                 $content = file_get_contents($_FILES['file_libera']['tmp_name']);
                 $records = Parsers::parseLiberaPension($content, $loteId, $_FILES['file_libera']['name']);
                 foreach ($records as $r) {
-                    $db->insertDocumento($r);
+                    $db->insertPension($r);
                 }
                 $totalLibera = count($records);
             }
@@ -51,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->getPdo()->commit();
 
             if ($totalEmitidos > 0 || $totalLibera > 0) {
-                $message = "Procesamiento completado con éxito: {$totalEmitidos} registros de emitidos y {$totalLibera} registros de pensión.";
+                $message = "Procesamiento completado: {$totalEmitidos} registros de emitidos y {$totalLibera} registros de pensión almacenados por separado.";
                 $messageType = 'success';
             } else {
                 $message = 'No se subió ningún archivo válido para procesar.';
@@ -81,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $content = file_get_contents($emitidosPath);
                 $records = Parsers::parseEmitidos($content, $loteId, 'emitidos.txt');
                 foreach ($records as $r) {
-                    $db->insertDocumento($r);
+                    $db->insertEmitido($r);
                 }
                 $totalEmitidos = count($records);
             }
@@ -90,13 +92,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $content = file_get_contents($liberaPath);
                 $records = Parsers::parseLiberaPension($content, $loteId, 'libera_pension_des.txt');
                 foreach ($records as $r) {
-                    $db->insertDocumento($r);
+                    $db->insertPension($r);
                 }
                 $totalLibera = count($records);
             }
 
             $db->getPdo()->commit();
-            $message = "Archivos locales procesados: {$totalEmitidos} registros de emitidos y {$totalLibera} de pensión.";
+            $message = "Archivos locales procesados: {$totalEmitidos} de emitidos y {$totalLibera} de pensión (separados).";
             $messageType = 'success';
         } catch (Throwable $e) {
             $db->getPdo()->rollBack();
@@ -106,24 +108,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Consultar datos para la vista
-$resumen = $db->getResumen();
-$chequesCount = $resumen['CHEQUE']['total'] ?? 0;
-$chequesMonto = $resumen['CHEQUE']['monto'] ?? 0.0;
-$recibosCount = $resumen['RECIBO']['total'] ?? 0;
-$recibosMonto = $resumen['RECIBO']['monto'] ?? 0.0;
-$totalRegistros = $chequesCount + $recibosCount;
-$totalMonto = $chequesMonto + $recibosMonto;
+// Consultar datos de EMITIDOS
+$resumenEmitidos = $db->getResumenEmitidos();
+$chequesCount = $resumenEmitidos['CHEQUE']['total'] ?? 0;
+$chequesMonto = $resumenEmitidos['CHEQUE']['monto'] ?? 0.0;
+$recibosCount = $resumenEmitidos['RECIBO']['total'] ?? 0;
+$recibosMonto = $resumenEmitidos['RECIBO']['monto'] ?? 0.0;
+$totalEmitidosCount = $chequesCount + $recibosCount;
+$totalEmitidosMonto = $chequesMonto + $recibosMonto;
 
-$chequesList = $db->getDocumentosPorTipo('CHEQUE');
-$recibosList = $db->getDocumentosPorTipo('RECIBO');
+// Consultar datos de PENSIÓN (separados)
+$resumenPension = $db->getResumenPensiones();
+$pensionCount = $resumenPension['total'] ?? 0;
+$pensionMonto = $resumenPension['monto'] ?? 0.0;
+
+$chequesList = $db->getEmitidosPorTipo('CHEQUE');
+$recibosList = $db->getEmitidosPorTipo('RECIBO');
+$pensionList = $db->getPensiones();
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Procesador de Nómina - Cheques y Recibos</title>
+    <title>Procesador de Nómina y Pensión</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -143,19 +151,19 @@ $recibosList = $db->getDocumentosPorTipo('RECIBO');
                 </div>
                 <div>
                     <h1 class="text-xl font-bold tracking-tight">Procesador de Nómina</h1>
-                    <p class="text-xs text-indigo-200">Segmentación de Cheques, Recibos y Exportación Excel</p>
+                    <p class="text-xs text-indigo-200">Segmentación de Emitidos (Cheques / SPEI) y Pensión Alimenticia</p>
                 </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-                <a href="export.php?formato=txt&tipo=cheques" title="Descargar archivo de texto emitidos.txt solo con cheques" class="inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-500 text-white font-medium text-xs px-3.5 py-2 rounded-lg shadow-sm transition">
+                <a href="export.php?formato=txt&tipo=cheques" title="Descargar solo cheques de emitidos" class="inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-500 text-white font-medium text-xs px-3.5 py-2 rounded-lg shadow-sm transition">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     emitidos.txt (Cheques)
                 </a>
-                <a href="export.php?formato=txt&tipo=recibos" title="Descargar archivo de texto emitidos_spei.txt solo con recibos" class="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs px-3.5 py-2 rounded-lg shadow-sm transition">
+                <a href="export.php?formato=txt&tipo=recibos" title="Descargar solo recibos SPEI de emitidos" class="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs px-3.5 py-2 rounded-lg shadow-sm transition">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     emitidos_spei.txt (Recibos)
                 </a>
-                <a href="export.php?formato=xlsx" title="Descargar Excel con pestañas separadas" class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs px-3.5 py-2 rounded-lg shadow-sm transition">
+                <a href="export.php?formato=xlsx" title="Descargar libro Excel con pestañas separadas" class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs px-3.5 py-2 rounded-lg shadow-sm transition">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     Excel (.xlsx)
                 </a>
@@ -181,55 +189,89 @@ $recibosList = $db->getDocumentosPorTipo('RECIBO');
             </div>
         <?php endif; ?>
 
-        <!-- Métricas / Resumen -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <!-- Cheques -->
-            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Cheques (4 dígitos)</span>
-                    <span class="px-2 py-0.5 text-xs font-bold bg-amber-100 text-amber-800 rounded-full">Pestaña 1</span>
-                </div>
-                <div class="mt-3 flex items-baseline justify-between">
-                    <div class="text-2xl font-bold text-slate-800"><?= number_format($chequesCount) ?></div>
-                    <div class="text-lg font-semibold text-amber-600">$<?= number_format($chequesMonto, 2) ?></div>
-                </div>
-                <p class="text-xs text-slate-400 mt-2">Cuenta: <?= Parsers::CUENTA_CONSTANTE ?></p>
+        <!-- Sección 1: Métricas de EMITIDOS (Nómina) -->
+        <div>
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-sm font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-indigo-600 inline-block"></span>
+                    Métricas de Emitidos (Nómina)
+                </h2>
+                <span class="text-xs text-slate-400">Cuenta: <?= Parsers::CUENTA_CONSTANTE ?></span>
             </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Cheques Emitidos -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Cheques (4 dígitos)</span>
+                        <span class="px-2 py-0.5 text-xs font-bold bg-amber-100 text-amber-800 rounded-full">emitidos.txt</span>
+                    </div>
+                    <div class="mt-3 flex items-baseline justify-between">
+                        <div class="text-2xl font-bold text-slate-800"><?= number_format($chequesCount) ?></div>
+                        <div class="text-lg font-semibold text-amber-600">$<?= number_format($chequesMonto, 2) ?></div>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-2">Pestaña 1 en Excel</p>
+                </div>
 
-            <!-- Recibos -->
-            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Recibos (7 dígitos)</span>
-                    <span class="px-2 py-0.5 text-xs font-bold bg-blue-100 text-blue-800 rounded-full">Pestaña 2</span>
+                <!-- Recibos SPEI Emitidos -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Recibos SPEI (7 dígitos)</span>
+                        <span class="px-2 py-0.5 text-xs font-bold bg-blue-100 text-blue-800 rounded-full">emitidos_spei.txt</span>
+                    </div>
+                    <div class="mt-3 flex items-baseline justify-between">
+                        <div class="text-2xl font-bold text-slate-800"><?= number_format($recibosCount) ?></div>
+                        <div class="text-lg font-semibold text-blue-600">$<?= number_format($recibosMonto, 2) ?></div>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-2">Pestaña 2 en Excel</p>
                 </div>
-                <div class="mt-3 flex items-baseline justify-between">
-                    <div class="text-2xl font-bold text-slate-800"><?= number_format($recibosCount) ?></div>
-                    <div class="text-lg font-semibold text-blue-600">$<?= number_format($recibosMonto, 2) ?></div>
+
+                <!-- Subtotal Emitidos -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Subtotal Emitidos</span>
+                        <span class="px-2 py-0.5 text-xs font-bold bg-indigo-100 text-indigo-800 rounded-full">Total Nómina</span>
+                    </div>
+                    <div class="mt-3 flex items-baseline justify-between">
+                        <div class="text-2xl font-bold text-slate-800"><?= number_format($totalEmitidosCount) ?></div>
+                        <div class="text-lg font-semibold text-indigo-600">$<?= number_format($totalEmitidosMonto, 2) ?></div>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-2">Suma exclusiva de emitidos</p>
                 </div>
-                <p class="text-xs text-slate-400 mt-2">Cuenta: <?= Parsers::CUENTA_CONSTANTE ?></p>
             </div>
+        </div>
 
-            <!-- Total General -->
-            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Acumulado</span>
-                    <span class="px-2 py-0.5 text-xs font-bold bg-emerald-100 text-emerald-800 rounded-full">Nómina Total</span>
+        <!-- Sección 2: Métrica de PENSIÓN (Separada e independiente) -->
+        <div class="bg-purple-50/60 p-4 rounded-2xl border border-purple-200">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold text-sm">
+                        P
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-purple-950">Pensión Alimenticia (Archivo Independiente)</h3>
+                        <p class="text-xs text-purple-700">No forma parte de la división de emitidos ni se suma con la nómina.</p>
+                    </div>
                 </div>
-                <div class="mt-3 flex items-baseline justify-between">
-                    <div class="text-2xl font-bold text-slate-800"><?= number_format($totalRegistros) ?></div>
-                    <div class="text-lg font-semibold text-emerald-600">$<?= number_format($totalMonto, 2) ?></div>
+                <div class="flex items-center gap-6">
+                    <div>
+                        <span class="text-[11px] uppercase font-semibold text-purple-700 block">Registros</span>
+                        <span class="text-lg font-bold text-purple-950"><?= number_format($pensionCount) ?></span>
+                    </div>
+                    <div>
+                        <span class="text-[11px] uppercase font-semibold text-purple-700 block">Monto Total Pensión</span>
+                        <span class="text-lg font-bold text-purple-700">$<?= number_format($pensionMonto, 2) ?></span>
+                    </div>
                 </div>
-                <p class="text-xs text-slate-400 mt-2">Base de datos SQLite activa</p>
             </div>
         </div>
 
         <!-- Panel de Descarga de Archivos Separados -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-            <h2 class="text-base font-bold text-slate-800 mb-2 flex items-center gap-2">
+            <h2 class="text-base font-bold text-slate-800 mb-1 flex items-center gap-2">
                 <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                Descarga de Archivos Generados
+                Descarga de Archivos
             </h2>
-            <p class="text-xs text-slate-500 mb-5">Descarga los archivos ya segmentados en texto plano (.txt de 86 caracteres) o el reporte en Excel (.xlsx).</p>
+            <p class="text-xs text-slate-500 mb-5">Descarga los archivos segmentados en texto plano (.txt de 86 caracteres) o el libro de Excel.</p>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <!-- 1. TXT Cheques -->
@@ -237,9 +279,9 @@ $recibosList = $db->getDocumentosPorTipo('RECIBO');
                     <div>
                         <div class="flex items-center justify-between mb-1">
                             <span class="font-bold text-amber-900 text-sm">emitidos.txt</span>
-                            <span class="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded font-bold">Cheques (4 dígitos)</span>
+                            <span class="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded font-bold"><?= $chequesCount ?> Cheques</span>
                         </div>
-                        <p class="text-xs text-amber-800/80 mb-4">Archivo de texto con formato estándar de 86 caracteres con únicamente cheques.</p>
+                        <p class="text-xs text-amber-800/80 mb-4">Archivo de texto con formato de 86 caracteres conteniendo <strong>únicamente cheques de emitidos</strong>.</p>
                     </div>
                     <a href="export.php?formato=txt&tipo=cheques" class="inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs py-2.5 px-4 rounded-lg shadow-sm transition">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
@@ -252,9 +294,9 @@ $recibosList = $db->getDocumentosPorTipo('RECIBO');
                     <div>
                         <div class="flex items-center justify-between mb-1">
                             <span class="font-bold text-blue-900 text-sm">emitidos_spei.txt</span>
-                            <span class="text-[10px] bg-blue-200 text-blue-900 px-2 py-0.5 rounded font-bold">Recibos SPEI (7 dígitos)</span>
+                            <span class="text-[10px] bg-blue-200 text-blue-900 px-2 py-0.5 rounded font-bold"><?= $recibosCount ?> Recibos</span>
                         </div>
-                        <p class="text-xs text-blue-800/80 mb-4">Archivo de texto con formato estándar de 86 caracteres con únicamente recibos SPEI.</p>
+                        <p class="text-xs text-blue-800/80 mb-4">Archivo de texto con formato de 86 caracteres conteniendo <strong>únicamente recibos SPEI de emitidos</strong>.</p>
                     </div>
                     <a href="export.php?formato=txt&tipo=recibos" class="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs py-2.5 px-4 rounded-lg shadow-sm transition">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
@@ -267,9 +309,9 @@ $recibosList = $db->getDocumentosPorTipo('RECIBO');
                     <div>
                         <div class="flex items-center justify-between mb-1">
                             <span class="font-bold text-emerald-900 text-sm">Libro Excel (.xlsx)</span>
-                            <span class="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-bold">2 Pestañas</span>
+                            <span class="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-bold">Hojas Separadas</span>
                         </div>
-                        <p class="text-xs text-emerald-800/80 mb-4">Pestaña "Cheques" y pestaña "Recibos", cada una con Cuenta, Documento y Monto.</p>
+                        <p class="text-xs text-emerald-800/80 mb-4">Pestaña "Cheques", pestaña "Recibos" y pestaña "Pensión", sin sumarse entre sí.</p>
                     </div>
                     <div class="flex items-center gap-2">
                         <a href="export.php?formato=xlsx" class="flex-1 inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs py-2.5 px-3 rounded-lg shadow-sm transition">
@@ -298,7 +340,7 @@ $recibosList = $db->getDocumentosPorTipo('RECIBO');
                     <!-- File 1: Emitidos -->
                     <div class="p-4 rounded-xl border border-dashed border-slate-300 hover:border-indigo-400 bg-slate-50/50 transition">
                         <label class="block text-sm font-semibold text-slate-700 mb-1">
-                            1. Archivo Emitidos (Ancho fijo) <span class="text-rose-500">*</span>
+                            1. Archivo Emitidos (Nómina)
                         </label>
                         <p class="text-xs text-slate-500 mb-2">Archivo general con cheques de 4 dígitos y recibos de 7 dígitos (`emitidos.txt`).</p>
                         <input type="file" name="file_emitidos" accept=".txt,.csv,.dat" class="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer">
@@ -307,9 +349,9 @@ $recibosList = $db->getDocumentosPorTipo('RECIBO');
                     <!-- File 2: Libera Pension -->
                     <div class="p-4 rounded-xl border border-dashed border-slate-300 hover:border-indigo-400 bg-slate-50/50 transition">
                         <label class="block text-sm font-semibold text-slate-700 mb-1">
-                            2. Archivo Liberación Pensión (CSV) <span class="text-slate-400 text-xs">(Opcional)</span>
+                            2. Archivo Liberación Pensión (Independiente)
                         </label>
-                        <p class="text-xs text-slate-500 mb-2">Archivo complementario separado por comas (`libera_pension_des.txt`).</p>
+                        <p class="text-xs text-slate-500 mb-2">Archivo separado por comas (`libera_pension_des.txt`). No se divide ni se suma a emitidos.</p>
                         <input type="file" name="file_libera" accept=".txt,.csv,.dat" class="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer">
                     </div>
                 </div>
@@ -321,7 +363,6 @@ $recibosList = $db->getDocumentosPorTipo('RECIBO');
                     </label>
 
                     <div class="flex items-center gap-2">
-                        <!-- Botón para procesar archivos locales existentes -->
                         <button type="submit" formaction="index.php" onclick="this.form.action.value='load_local'" class="text-xs text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-lg transition font-medium">
                             Cargar archivos locales en raíz
                         </button>
@@ -336,19 +377,22 @@ $recibosList = $db->getDocumentosPorTipo('RECIBO');
         <!-- Tabla con Vista Previa -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div class="p-5 border-b border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div class="flex items-center gap-2">
+                <div class="flex flex-wrap items-center gap-2">
                     <button id="tabBtnCheques" onclick="switchTab('cheques')" class="px-4 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white transition shadow-sm">
-                        Cheques (<?= count($chequesList) ?>)
+                        Cheques Emitidos (<?= count($chequesList) ?>)
                     </button>
                     <button id="tabBtnRecibos" onclick="switchTab('recibos')" class="px-4 py-2 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
-                        Recibos (<?= count($recibosList) ?>)
+                        Recibos Emitidos SPEI (<?= count($recibosList) ?>)
+                    </button>
+                    <button id="tabBtnPension" onclick="switchTab('pension')" class="px-4 py-2 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
+                        Pensión Alimenticia (<?= count($pensionList) ?>)
                     </button>
                 </div>
 
                 <div class="flex items-center gap-3 w-full sm:w-auto">
                     <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Buscar por número, nombre..." class="w-full sm:w-64 text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500">
                     
-                    <form action="index.php" method="POST" onsubmit="return confirm('¿Seguro que deseas vaciar todos los registros de la base de datos?');">
+                    <form action="index.php" method="POST" onsubmit="return confirm('¿Seguro que deseas vaciar todos los registros?');">
                         <input type="hidden" name="action" value="clear">
                         <button type="submit" class="text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-3 py-2 rounded-lg font-medium transition">
                             Vaciar Datos
@@ -357,24 +401,23 @@ $recibosList = $db->getDocumentosPorTipo('RECIBO');
                 </div>
             </div>
 
-            <!-- Tabla Cheques -->
+            <!-- Tabla 1: Cheques Emitidos -->
             <div id="tabCheques" class="overflow-x-auto max-h-[500px]">
                 <table class="w-full text-left text-xs text-slate-600">
                     <thead class="bg-slate-50 text-slate-700 uppercase font-semibold sticky top-0 border-b border-slate-200 z-10">
                         <tr>
-                            <th class="py-3 px-4">Cuenta (A)</th>
-                            <th class="py-3 px-4">Cheque (B)</th>
-                            <th class="py-3 px-4 text-right">Monto (C)</th>
+                            <th class="py-3 px-4">Cuenta</th>
+                            <th class="py-3 px-4">Cheque (4 dígitos)</th>
+                            <th class="py-3 px-4 text-right">Monto</th>
                             <th class="py-3 px-4">Fecha</th>
-                            <th class="py-3 px-4">Empleado / Beneficiario</th>
-                            <th class="py-3 px-4">Nombre</th>
-                            <th class="py-3 px-4">Origen</th>
+                            <th class="py-3 px-4">No. Empleado</th>
+                            <th class="py-3 px-4">Nombre Trabajador</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100" id="chequesTableBody">
                         <?php if (empty($chequesList)): ?>
                             <tr>
-                                <td colspan="7" class="py-8 text-center text-slate-400">No hay cheques registrados. Sube un archivo para comenzar.</td>
+                                <td colspan="6" class="py-8 text-center text-slate-400">No hay cheques registrados.</td>
                             </tr>
                         <?php else: ?>
                             <?php foreach ($chequesList as $c): ?>
@@ -383,9 +426,8 @@ $recibosList = $db->getDocumentosPorTipo('RECIBO');
                                     <td class="py-2.5 px-4 font-mono font-bold text-amber-700"><?= htmlspecialchars((string)$c['numero_documento']) ?></td>
                                     <td class="py-2.5 px-4 font-mono font-semibold text-right text-slate-900">$<?= number_format((float)$c['monto'], 2) ?></td>
                                     <td class="py-2.5 px-4 text-slate-500"><?= htmlspecialchars((string)$c['fecha_emision']) ?></td>
-                                    <td class="py-2.5 px-4 font-mono text-slate-500"><?= htmlspecialchars((string)$c['numero_persona']) ?></td>
-                                    <td class="py-2.5 px-4 font-medium text-slate-800"><?= htmlspecialchars((string)$c['nombre_persona']) ?></td>
-                                    <td class="py-2.5 px-4 text-[10px] text-slate-400"><?= htmlspecialchars((string)$c['archivo_origen']) ?></td>
+                                    <td class="py-2.5 px-4 font-mono text-slate-500"><?= htmlspecialchars((string)$c['numero_empleado']) ?></td>
+                                    <td class="py-2.5 px-4 font-medium text-slate-800"><?= htmlspecialchars((string)$c['nombre_empleado']) ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php endif; ?>
@@ -393,24 +435,23 @@ $recibosList = $db->getDocumentosPorTipo('RECIBO');
                 </table>
             </div>
 
-            <!-- Tabla Recibos -->
+            <!-- Tabla 2: Recibos Emitidos SPEI -->
             <div id="tabRecibos" class="overflow-x-auto max-h-[500px] hidden">
                 <table class="w-full text-left text-xs text-slate-600">
                     <thead class="bg-slate-50 text-slate-700 uppercase font-semibold sticky top-0 border-b border-slate-200 z-10">
                         <tr>
-                            <th class="py-3 px-4">Cuenta (A)</th>
-                            <th class="py-3 px-4">Recibo (B)</th>
-                            <th class="py-3 px-4 text-right">Monto (C)</th>
+                            <th class="py-3 px-4">Cuenta</th>
+                            <th class="py-3 px-4">Recibo SPEI (7 dígitos)</th>
+                            <th class="py-3 px-4 text-right">Monto</th>
                             <th class="py-3 px-4">Fecha</th>
                             <th class="py-3 px-4">No. Empleado</th>
-                            <th class="py-3 px-4">Nombre</th>
-                            <th class="py-3 px-4">Origen</th>
+                            <th class="py-3 px-4">Nombre Trabajador</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100" id="recibosTableBody">
                         <?php if (empty($recibosList)): ?>
                             <tr>
-                                <td colspan="7" class="py-8 text-center text-slate-400">No hay recibos registrados. Sube un archivo para comenzar.</td>
+                                <td colspan="6" class="py-8 text-center text-slate-400">No hay recibos registrados.</td>
                             </tr>
                         <?php else: ?>
                             <?php foreach ($recibosList as $r): ?>
@@ -419,9 +460,42 @@ $recibosList = $db->getDocumentosPorTipo('RECIBO');
                                     <td class="py-2.5 px-4 font-mono font-bold text-blue-700"><?= htmlspecialchars((string)$r['numero_documento']) ?></td>
                                     <td class="py-2.5 px-4 font-mono font-semibold text-right text-slate-900">$<?= number_format((float)$r['monto'], 2) ?></td>
                                     <td class="py-2.5 px-4 text-slate-500"><?= htmlspecialchars((string)$r['fecha_emision']) ?></td>
-                                    <td class="py-2.5 px-4 font-mono text-slate-500"><?= htmlspecialchars((string)$r['numero_persona']) ?></td>
-                                    <td class="py-2.5 px-4 font-medium text-slate-800"><?= htmlspecialchars((string)$r['nombre_persona']) ?></td>
-                                    <td class="py-2.5 px-4 text-[10px] text-slate-400"><?= htmlspecialchars((string)$r['archivo_origen']) ?></td>
+                                    <td class="py-2.5 px-4 font-mono text-slate-500"><?= htmlspecialchars((string)$r['numero_empleado']) ?></td>
+                                    <td class="py-2.5 px-4 font-medium text-slate-800"><?= htmlspecialchars((string)$r['nombre_empleado']) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Tabla 3: Pensión Alimenticia (Independiente) -->
+            <div id="tabPension" class="overflow-x-auto max-h-[500px] hidden">
+                <table class="w-full text-left text-xs text-slate-600">
+                    <thead class="bg-purple-50 text-purple-900 uppercase font-semibold sticky top-0 border-b border-purple-200 z-10">
+                        <tr>
+                            <th class="py-3 px-4">Cuenta</th>
+                            <th class="py-3 px-4">Cheque</th>
+                            <th class="py-3 px-4 text-right">Monto</th>
+                            <th class="py-3 px-4">Fecha</th>
+                            <th class="py-3 px-4">No. Beneficiaria</th>
+                            <th class="py-3 px-4">Nombre Beneficiaria</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-purple-100" id="pensionTableBody">
+                        <?php if (empty($pensionList)): ?>
+                            <tr>
+                                <td colspan="6" class="py-8 text-center text-slate-400">No hay registros de pensión alimenticia.</td>
+                            </tr>
+                        <?php else: ?>
+                            <?php foreach ($pensionList as $p): ?>
+                                <tr class="hover:bg-purple-50/50 transition search-row">
+                                    <td class="py-2.5 px-4 font-mono font-medium text-slate-700"><?= htmlspecialchars((string)$p['cuenta']) ?></td>
+                                    <td class="py-2.5 px-4 font-mono font-bold text-purple-700"><?= htmlspecialchars((string)$p['cheque']) ?></td>
+                                    <td class="py-2.5 px-4 font-mono font-semibold text-right text-slate-900">$<?= number_format((float)$p['monto'], 2) ?></td>
+                                    <td class="py-2.5 px-4 text-slate-500"><?= htmlspecialchars((string)$p['fecha_emision']) ?></td>
+                                    <td class="py-2.5 px-4 font-mono text-slate-500"><?= htmlspecialchars((string)$p['numero_beneficiaria']) ?></td>
+                                    <td class="py-2.5 px-4 font-medium text-slate-800"><?= htmlspecialchars((string)$p['beneficiaria']) ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php endif; ?>
@@ -430,7 +504,7 @@ $recibosList = $db->getDocumentosPorTipo('RECIBO');
             </div>
 
             <div class="p-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 flex justify-between items-center">
-                <span>Estructura de salida Excel: <strong>Hoja 1 (Cheques)</strong> y <strong>Hoja 2 (Recibos)</strong></span>
+                <span>Estructura Excel: <strong>Hoja Cheques</strong> | <strong>Hoja Recibos</strong> | <strong>Hoja Pensión</strong></span>
                 <span>Columnas: <strong>Cuenta</strong> | <strong>Cheque / Recibo</strong> | <strong>Monto</strong></span>
             </div>
         </div>
@@ -444,28 +518,39 @@ $recibosList = $db->getDocumentosPorTipo('RECIBO');
             currentTab = tab;
             const btnCheques = document.getElementById('tabBtnCheques');
             const btnRecibos = document.getElementById('tabBtnRecibos');
+            const btnPension = document.getElementById('tabBtnPension');
+
             const tabCheques = document.getElementById('tabCheques');
             const tabRecibos = document.getElementById('tabRecibos');
+            const tabPension = document.getElementById('tabPension');
+
+            // Reset buttons
+            [btnCheques, btnRecibos, btnPension].forEach(b => {
+                b.className = 'px-4 py-2 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition';
+            });
+            // Hide all tabs
+            [tabCheques, tabRecibos, tabPension].forEach(t => t.classList.add('hidden'));
 
             if (tab === 'cheques') {
                 btnCheques.className = 'px-4 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white transition shadow-sm';
-                btnRecibos.className = 'px-4 py-2 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition';
                 tabCheques.classList.remove('hidden');
-                tabRecibos.classList.add('hidden');
-            } else {
+            } else if (tab === 'recibos') {
                 btnRecibos.className = 'px-4 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white transition shadow-sm';
-                btnCheques.className = 'px-4 py-2 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition';
                 tabRecibos.classList.remove('hidden');
-                tabCheques.classList.add('hidden');
+            } else if (tab === 'pension') {
+                btnPension.className = 'px-4 py-2 text-xs font-bold rounded-lg bg-purple-600 text-white transition shadow-sm';
+                tabPension.classList.remove('hidden');
             }
             filterTable();
         }
 
         function filterTable() {
             const query = document.getElementById('searchInput').value.toLowerCase();
-            const containerId = currentTab === 'cheques' ? 'chequesTableBody' : 'recibosTableBody';
-            const rows = document.getElementById(containerId).getElementsByClassName('search-row');
+            let containerId = 'chequesTableBody';
+            if (currentTab === 'recibos') containerId = 'recibosTableBody';
+            if (currentTab === 'pension') containerId = 'pensionTableBody';
 
+            const rows = document.getElementById(containerId).getElementsByClassName('search-row');
             for (let i = 0; i < rows.length; i++) {
                 const text = rows[i].textContent.toLowerCase();
                 rows[i].style.display = text.includes(query) ? '' : 'none';

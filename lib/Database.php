@@ -34,72 +34,118 @@ class Database
 
     private function initSchema(): void
     {
+        // Tabla para emitidos (Cheques y Recibos SPEI de nómina)
         $this->pdo->exec('
-            CREATE TABLE IF NOT EXISTS documentos (
+            CREATE TABLE IF NOT EXISTS emitidos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 lote_id TEXT NOT NULL,
-                archivo_origen TEXT NOT NULL,
                 tipo TEXT NOT NULL, -- CHEQUE o RECIBO
-                cuenta TEXT NOT NULL, -- 120866091
-                numero_documento TEXT NOT NULL, -- ej 6396 o 4380996 (sin ceros izq)
+                cuenta TEXT NOT NULL,
+                numero_documento TEXT NOT NULL,
                 monto REAL NOT NULL,
                 fecha_emision TEXT,
-                numero_persona TEXT,
-                nombre_persona TEXT,
+                numero_empleado TEXT,
+                nombre_empleado TEXT,
                 linea_original TEXT,
                 creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
             );
 
-            CREATE INDEX IF NOT EXISTS idx_tipo ON documentos(tipo);
-            CREATE INDEX IF NOT EXISTS idx_lote ON documentos(lote_id);
-            CREATE INDEX IF NOT EXISTS idx_num_doc ON documentos(numero_documento);
-        ');
+            CREATE INDEX IF NOT EXISTS idx_emitidos_tipo ON emitidos(tipo);
+            CREATE INDEX IF NOT EXISTS idx_emitidos_doc ON emitidos(numero_documento);
 
-        try {
-            $this->pdo->exec('ALTER TABLE documentos ADD COLUMN linea_original TEXT');
-        } catch (Throwable $e) {
-            // Ya existe la columna
-        }
+            -- Tabla separada para pensiones alimenticias (NO se mezcla con emitidos)
+            CREATE TABLE IF NOT EXISTS pensiones (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                lote_id TEXT NOT NULL,
+                cuenta TEXT NOT NULL,
+                cheque TEXT NOT NULL,
+                monto REAL NOT NULL,
+                numero_beneficiaria TEXT,
+                beneficiaria TEXT,
+                fecha_emision TEXT,
+                linea_original TEXT,
+                creado_en DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_pensiones_cheque ON pensiones(cheque);
+        ');
     }
 
-    public function insertDocumento(array $data): void
+    public function clearEmitidos(): void
+    {
+        $this->pdo->exec('DELETE FROM emitidos');
+    }
+
+    public function clearPensiones(): void
+    {
+        $this->pdo->exec('DELETE FROM pensiones');
+    }
+
+    public function clearAll(): void
+    {
+        $this->clearEmitidos();
+        $this->clearPensiones();
+        // Limpiar tabla antigua si existía
+        try {
+            $this->pdo->exec('DROP TABLE IF EXISTS documentos');
+        } catch (Throwable $e) {}
+    }
+
+    public function insertEmitido(array $data): void
     {
         $stmt = $this->pdo->prepare('
-            INSERT INTO documentos (
-                lote_id, archivo_origen, tipo, cuenta, numero_documento,
-                monto, fecha_emision, numero_persona, nombre_persona, linea_original
+            INSERT INTO emitidos (
+                lote_id, tipo, cuenta, numero_documento,
+                monto, fecha_emision, numero_empleado, nombre_empleado, linea_original
             ) VALUES (
-                :lote_id, :archivo_origen, :tipo, :cuenta, :numero_documento,
-                :monto, :fecha_emision, :numero_persona, :nombre_persona, :linea_original
+                :lote_id, :tipo, :cuenta, :numero_documento,
+                :monto, :fecha_emision, :numero_empleado, :nombre_empleado, :linea_original
             )
         ');
         $stmt->execute([
             ':lote_id' => $data['lote_id'],
-            ':archivo_origen' => $data['archivo_origen'],
             ':tipo' => $data['tipo'],
             ':cuenta' => $data['cuenta'],
             ':numero_documento' => $data['numero_documento'],
             ':monto' => $data['monto'],
             ':fecha_emision' => $data['fecha_emision'] ?? '',
-            ':numero_persona' => $data['numero_persona'] ?? '',
-            ':nombre_persona' => $data['nombre_persona'] ?? '',
+            ':numero_empleado' => $data['numero_empleado'] ?? '',
+            ':nombre_empleado' => $data['nombre_empleado'] ?? '',
             ':linea_original' => $data['linea_original'] ?? ''
         ]);
     }
 
-    public function clearAll(): void
+    public function insertPension(array $data): void
     {
-        $this->pdo->exec('DELETE FROM documentos');
+        $stmt = $this->pdo->prepare('
+            INSERT INTO pensiones (
+                lote_id, cuenta, cheque, monto,
+                numero_beneficiaria, beneficiaria, fecha_emision, linea_original
+            ) VALUES (
+                :lote_id, :cuenta, :cheque, :monto,
+                :numero_beneficiaria, :beneficiaria, :fecha_emision, :linea_original
+            )
+        ');
+        $stmt->execute([
+            ':lote_id' => $data['lote_id'],
+            ':cuenta' => $data['cuenta'],
+            ':cheque' => $data['cheque'],
+            ':monto' => $data['monto'],
+            ':numero_beneficiaria' => $data['numero_beneficiaria'] ?? '',
+            ':beneficiaria' => $data['beneficiaria'] ?? '',
+            ':fecha_emision' => $data['fecha_emision'] ?? '',
+            ':linea_original' => $data['linea_original'] ?? ''
+        ]);
     }
 
-    public function getResumen(): array
+    public function getResumenEmitidos(): array
     {
         $res = $this->pdo->query('
             SELECT 
                 tipo,
                 COUNT(*) as total_registros,
                 SUM(monto) as total_monto
-            FROM documentos
+            FROM emitidos
             GROUP BY tipo
         ')->fetchAll();
 
@@ -118,60 +164,51 @@ class Database
         return $summary;
     }
 
-    public function getDocumentosPorTipo(string $tipo, ?string $archivoOrigen = null): array
+    public function getResumenPensiones(): array
     {
-        if ($archivoOrigen !== null) {
-            $stmt = $this->pdo->prepare('
-                SELECT cuenta, numero_documento, monto, fecha_emision, numero_persona, nombre_persona, archivo_origen, linea_original
-                FROM documentos
-                WHERE tipo = :tipo AND archivo_origen = :archivo_origen
-                ORDER BY id ASC
-            ');
-            $stmt->execute([':tipo' => $tipo, ':archivo_origen' => $archivoOrigen]);
-        } else {
-            $stmt = $this->pdo->prepare('
-                SELECT cuenta, numero_documento, monto, fecha_emision, numero_persona, nombre_persona, archivo_origen, linea_original
-                FROM documentos
-                WHERE tipo = :tipo
-                ORDER BY id ASC
-            ');
-            $stmt->execute([':tipo' => $tipo]);
-        }
+        $row = $this->pdo->query('
+            SELECT 
+                COUNT(*) as total_registros,
+                COALESCE(SUM(monto), 0) as total_monto
+            FROM pensiones
+        ')->fetch();
+
+        return [
+            'total' => (int)($row['total_registros'] ?? 0),
+            'monto' => (float)($row['total_monto'] ?? 0.0)
+        ];
+    }
+
+    public function getEmitidosPorTipo(string $tipo): array
+    {
+        $stmt = $this->pdo->prepare('
+            SELECT cuenta, numero_documento, monto, fecha_emision, numero_empleado, nombre_empleado, linea_original
+            FROM emitidos
+            WHERE tipo = :tipo
+            ORDER BY id ASC
+        ');
+        $stmt->execute([':tipo' => $tipo]);
         return $stmt->fetchAll();
     }
 
-    public function getLineasOriginalesPorTipo(string $tipo, ?string $archivoOrigen = null): array
+    public function getLineasEmitidosPorTipo(string $tipo): array
     {
-        if ($archivoOrigen !== null) {
-            $stmt = $this->pdo->prepare('
-                SELECT linea_original
-                FROM documentos
-                WHERE tipo = :tipo AND archivo_origen = :archivo_origen AND linea_original IS NOT NULL AND linea_original != ""
-                ORDER BY id ASC
-            ');
-            $stmt->execute([':tipo' => $tipo, ':archivo_origen' => $archivoOrigen]);
-        } else {
-            $stmt = $this->pdo->prepare('
-                SELECT linea_original
-                FROM documentos
-                WHERE tipo = :tipo AND linea_original IS NOT NULL AND linea_original != ""
-                ORDER BY id ASC
-            ');
-            $stmt->execute([':tipo' => $tipo]);
-        }
+        $stmt = $this->pdo->prepare('
+            SELECT linea_original
+            FROM emitidos
+            WHERE tipo = :tipo AND linea_original IS NOT NULL AND linea_original != ""
+            ORDER BY id ASC
+        ');
+        $stmt->execute([':tipo' => $tipo]);
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
-    public function getUltimos(int $limit = 50): array
+    public function getPensiones(): array
     {
-        $stmt = $this->pdo->prepare('
-            SELECT id, tipo, archivo_origen, cuenta, numero_documento, monto, fecha_emision, numero_persona, nombre_persona
-            FROM documentos
-            ORDER BY id DESC
-            LIMIT :limit
-        ');
-        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-        $stmt->execute();
-        return $stmt->fetchAll();
+        return $this->pdo->query('
+            SELECT cuenta, cheque, monto, numero_beneficiaria, beneficiaria, fecha_emision, linea_original
+            FROM pensiones
+            ORDER BY id ASC
+        ')->fetchAll();
     }
 }
