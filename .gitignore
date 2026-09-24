@@ -1,0 +1,23 @@
+# Datos y archivos de texto
+*.txt
+*.csv
+*.dat
+
+# Bases de datos SQLite
+*.db
+*.sqlite
+*.sqlite3
+
+# Archivos generados / Excel
+*.xlsx
+*.xls
+*.pdf
+
+# Archivos de entorno y temporales
+.env
+.env.*
+*.log
+.DS_Store
+Thumbs.db
+/tmp/
+/vendor/
