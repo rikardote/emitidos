@@ -261,6 +261,12 @@ $pensionList = $db->getPensiones();
                         <span class="text-[11px] uppercase font-semibold text-purple-700 block">Monto Total Pensión</span>
                         <span class="text-lg font-bold text-purple-700">$<?= number_format($pensionMonto, 2) ?></span>
                     </div>
+                    <div>
+                        <a href="export.php?formato=xlsx&tipo=pension" class="inline-flex items-center gap-1.5 bg-purple-700 hover:bg-purple-800 text-white font-semibold text-xs py-2 px-3.5 rounded-lg shadow-sm transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            Descargar Excel Pensión
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -271,9 +277,9 @@ $pensionList = $db->getPensiones();
                 <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                 Descarga de Archivos
             </h2>
-            <p class="text-xs text-slate-500 mb-5">Descarga los archivos segmentados en texto plano (.txt de 86 caracteres) o el libro de Excel.</p>
+            <p class="text-xs text-slate-500 mb-5">Descarga cada archivo de forma independiente según tus necesidades:</p>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <!-- 1. TXT Cheques -->
                 <div class="p-4 rounded-xl border border-amber-200 bg-amber-50/50 flex flex-col justify-between">
                     <div>
@@ -281,9 +287,9 @@ $pensionList = $db->getPensiones();
                             <span class="font-bold text-amber-900 text-sm">emitidos.txt</span>
                             <span class="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded font-bold"><?= $chequesCount ?> Cheques</span>
                         </div>
-                        <p class="text-xs text-amber-800/80 mb-4">Archivo de texto con formato de 86 caracteres conteniendo <strong>únicamente cheques de emitidos</strong>.</p>
+                        <p class="text-xs text-amber-800/80 mb-4">Texto (86 caracteres) con únicamente cheques de nómina.</p>
                     </div>
-                    <a href="export.php?formato=txt&tipo=cheques" class="inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs py-2.5 px-4 rounded-lg shadow-sm transition">
+                    <a href="export.php?formato=txt&tipo=cheques" class="inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs py-2 px-3 rounded-lg shadow-sm transition">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                         Descargar emitidos.txt
                     </a>
@@ -296,29 +302,49 @@ $pensionList = $db->getPensiones();
                             <span class="font-bold text-blue-900 text-sm">emitidos_spei.txt</span>
                             <span class="text-[10px] bg-blue-200 text-blue-900 px-2 py-0.5 rounded font-bold"><?= $recibosCount ?> Recibos</span>
                         </div>
-                        <p class="text-xs text-blue-800/80 mb-4">Archivo de texto con formato de 86 caracteres conteniendo <strong>únicamente recibos SPEI de emitidos</strong>.</p>
+                        <p class="text-xs text-blue-800/80 mb-4">Texto (86 caracteres) con únicamente recibos SPEI.</p>
                     </div>
-                    <a href="export.php?formato=txt&tipo=recibos" class="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs py-2.5 px-4 rounded-lg shadow-sm transition">
+                    <a href="export.php?formato=txt&tipo=recibos" class="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs py-2 px-3 rounded-lg shadow-sm transition">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                         Descargar emitidos_spei.txt
                     </a>
                 </div>
 
-                <!-- 3. Excel -->
+                <!-- 3. Excel Nómina -->
                 <div class="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 flex flex-col justify-between">
                     <div>
                         <div class="flex items-center justify-between mb-1">
-                            <span class="font-bold text-emerald-900 text-sm">Libro Excel (.xlsx)</span>
-                            <span class="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-bold">Hojas Separadas</span>
+                            <span class="font-bold text-emerald-900 text-sm">Excel Nómina</span>
+                            <span class="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-bold">Cheques y Recibos</span>
                         </div>
-                        <p class="text-xs text-emerald-800/80 mb-4">Pestaña "Cheques", pestaña "Recibos" y pestaña "Pensión", sin sumarse entre sí.</p>
+                        <p class="text-xs text-emerald-800/80 mb-4">Libro con hojas "Cheques" y "Recibos" de emitidos.</p>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <a href="export.php?formato=xlsx" class="flex-1 inline-flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs py-2.5 px-3 rounded-lg shadow-sm transition">
+                    <div class="flex items-center gap-1.5">
+                        <a href="export.php?formato=xlsx&tipo=nomina" class="flex-1 inline-flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs py-2 px-2 rounded-lg shadow-sm transition">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                            Descargar Excel
+                            Excel Nómina
                         </a>
-                        <a href="export.php?formato=xlsx&detalle=1" title="Incluye columnas con nombre de trabajador/beneficiario y fechas" class="inline-flex items-center justify-center bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-semibold text-xs py-2.5 px-3 rounded-lg transition">
+                        <a href="export.php?formato=xlsx&tipo=nomina&detalle=1" title="Incluye columnas con nombre y fechas" class="inline-flex items-center justify-center bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-semibold text-xs py-2 px-2 rounded-lg transition">
+                            Detallado
+                        </a>
+                    </div>
+                </div>
+
+                <!-- 4. Excel Pensión -->
+                <div class="p-4 rounded-xl border border-purple-200 bg-purple-50/50 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="font-bold text-purple-900 text-sm">Excel Pensión</span>
+                            <span class="text-[10px] bg-purple-200 text-purple-900 px-2 py-0.5 rounded font-bold"><?= $pensionCount ?> Registros</span>
+                        </div>
+                        <p class="text-xs text-purple-800/80 mb-4">Libro exclusivo para pensión alimenticia.</p>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <a href="export.php?formato=xlsx&tipo=pension" class="flex-1 inline-flex items-center justify-center gap-1 bg-purple-700 hover:bg-purple-600 text-white font-semibold text-xs py-2 px-2 rounded-lg shadow-sm transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                            Excel Pensión
+                        </a>
+                        <a href="export.php?formato=xlsx&tipo=pension&detalle=1" title="Incluye número y nombre de beneficiaria" class="inline-flex items-center justify-center bg-purple-100 hover:bg-purple-200 text-purple-900 font-semibold text-xs py-2 px-2 rounded-lg transition">
                             Detallado
                         </a>
                     </div>

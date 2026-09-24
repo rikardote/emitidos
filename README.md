@@ -52,13 +52,22 @@ El script procesará los registros, creará la base de datos `nomina.db` y gener
 - **`emitidos.txt`**: Contiene únicamente las líneas correspondientes a **Cheques** (4 dígitos).
 - **`emitidos_spei.txt`**: Contiene únicamente las líneas correspondientes a **Recibos SPEI** (7 dígitos).
 
-### 2. Libro Excel (.xlsx)
+### 2. Archivos Excel (.xlsx)
+
+#### `reporte_nomina.xlsx` (Nómina)
 - **Pestaña 1 ("Cheques")**:
-  - Columna A: Cuenta
+  - Columna A: Cuenta (`120866091`)
   - Columna B: Cheque
   - Columna C: Monto
 - **Pestaña 2 ("Recibos")**:
-  - Columna A: Cuenta
+  - Columna A: Cuenta (`120866091`)
   - Columna B: Recibo
   - Columna C: Monto
+
+#### `reporte_pension.xlsx` (Pensión Alimenticia - Archivo Propio)
+- **Pestaña 1 ("Pensión")**:
+  - Columna A: Cuenta (`120866091`)
+  - Columna B: Cheque
+  - Columna C: Monto
+
 

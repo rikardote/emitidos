@@ -7,7 +7,7 @@ require_once __DIR__ . '/lib/SimpleXlsx.php';
 
 $db = Database::getInstance();
 $formato = $_GET['formato'] ?? 'xlsx';
-$tipo = $_GET['tipo'] ?? 'todos'; // cheques, recibos, pension, todos
+$tipo = $_GET['tipo'] ?? 'nomina'; // nomina (cheques + recibos), cheques, recibos, pension
 $detalle = isset($_GET['detalle']) && $_GET['detalle'] === '1';
 
 // ----------------------------------------------------
@@ -44,8 +44,47 @@ if ($formato === 'txt') {
 // ----------------------------------------------------
 $xlsx = new SimpleXlsx();
 
-// Hoja Cheques (solo emitidos)
-if ($tipo === 'cheques' || $tipo === 'todos') {
+if ($tipo === 'pension') {
+    // ------------------------------------------------
+    // ARCHIVO EXCEL PROPIO Y EXCLUSIVO PARA PENSIÓN
+    // ------------------------------------------------
+    $pensionData = $db->getPensiones();
+    $sheetPension = [];
+
+    if ($detalle) {
+        $sheetPension[] = ['Cuenta', 'Cheque', 'Monto', 'Fecha Emisión', 'No. Beneficiaria', 'Nombre Beneficiaria'];
+        foreach ($pensionData as $row) {
+            $sheetPension[] = [
+                (string)$row['cuenta'],
+                (int)$row['cheque'],
+                (float)$row['monto'],
+                $row['fecha_emision'],
+                $row['numero_beneficiaria'],
+                $row['beneficiaria'],
+            ];
+        }
+    } else {
+        $sheetPension[] = ['Cuenta', 'Cheque', 'Monto'];
+        foreach ($pensionData as $row) {
+            $sheetPension[] = [
+                (string)$row['cuenta'],
+                (int)$row['cheque'],
+                (float)$row['monto'],
+            ];
+        }
+    }
+
+    $xlsx->addSheet('Pensión', $sheetPension);
+    $filename = 'Pensiones_' . date('Ymd_His') . ($detalle ? '_Detallado' : '') . '.xlsx';
+    $xlsx->download($filename);
+    exit;
+}
+
+// ----------------------------------------------------
+// ARCHIVO EXCEL DE EMITIDOS (NÓMINA)
+// (Cheques y Recibos en pestañas separadas. Pensión NO entra aquí)
+// ----------------------------------------------------
+if ($tipo === 'cheques' || $tipo === 'nomina' || $tipo === 'todos') {
     $chequesData = $db->getEmitidosPorTipo('CHEQUE');
     $sheetCheques = [];
 
@@ -74,8 +113,7 @@ if ($tipo === 'cheques' || $tipo === 'todos') {
     $xlsx->addSheet('Cheques', $sheetCheques);
 }
 
-// Hoja Recibos (solo emitidos)
-if ($tipo === 'recibos' || $tipo === 'todos') {
+if ($tipo === 'recibos' || $tipo === 'nomina' || $tipo === 'todos') {
     $recibosData = $db->getEmitidosPorTipo('RECIBO');
     $sheetRecibos = [];
 
@@ -104,37 +142,6 @@ if ($tipo === 'recibos' || $tipo === 'todos') {
     $xlsx->addSheet('Recibos', $sheetRecibos);
 }
 
-// Hoja Pensión Alimenticia (totalmente independiente)
-if ($tipo === 'pension' || ($tipo === 'todos')) {
-    $pensionData = $db->getPensiones();
-    if (!empty($pensionData)) {
-        $sheetPension = [];
-        if ($detalle) {
-            $sheetPension[] = ['Cuenta', 'Cheque', 'Monto', 'Fecha Emisión', 'No. Beneficiaria', 'Nombre Beneficiaria'];
-            foreach ($pensionData as $row) {
-                $sheetPension[] = [
-                    (string)$row['cuenta'],
-                    (int)$row['cheque'],
-                    (float)$row['monto'],
-                    $row['fecha_emision'],
-                    $row['numero_beneficiaria'],
-                    $row['beneficiaria'],
-                ];
-            }
-        } else {
-            $sheetPension[] = ['Cuenta', 'Cheque', 'Monto'];
-            foreach ($pensionData as $row) {
-                $sheetPension[] = [
-                    (string)$row['cuenta'],
-                    (int)$row['cheque'],
-                    (float)$row['monto'],
-                ];
-            }
-        }
-        $xlsx->addSheet('Pensión', $sheetPension);
-    }
-}
-
-$suffix = ($tipo === 'cheques') ? 'Cheques' : (($tipo === 'recibos') ? 'Recibos' : (($tipo === 'pension') ? 'Pension' : 'Nomina'));
+$suffix = ($tipo === 'cheques') ? 'Cheques' : (($tipo === 'recibos') ? 'Recibos' : 'Nomina');
 $filename = $suffix . '_' . date('Ymd_His') . ($detalle ? '_Detallado' : '') . '.xlsx';
 $xlsx->download($filename);

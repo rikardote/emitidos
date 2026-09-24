@@ -87,11 +87,11 @@ $speiFile = $outputDir . '/emitidos_spei.txt';
 file_put_contents($speiFile, implode("\r\n", $recibosLines) . "\r\n");
 echo "✓ Archivo emitidos_spei.txt (Recibos) generado: {$speiFile} (" . count($recibosLines) . " líneas)\n";
 
-// 3. Generar Excel
-$outputFile = $outputDir . '/reporte_nomina.xlsx';
-echo "- Generando {$outputFile}...\n";
+// 3. Generar Excel de Nómina (Emitidos: Cheques y Recibos)
+$outputNomina = $outputDir . '/reporte_nomina.xlsx';
+echo "- Generando {$outputNomina}...\n";
 
-$xlsx = new SimpleXlsx();
+$xlsxNomina = new SimpleXlsx();
 
 // Hoja 1: Cheques
 $sheetCheques = [['Cuenta', 'Cheque', 'Monto']];
@@ -102,7 +102,7 @@ foreach ($chequesDocs as $doc) {
         (float)$doc['monto'],
     ];
 }
-$xlsx->addSheet('Cheques', $sheetCheques);
+$xlsxNomina->addSheet('Cheques', $sheetCheques);
 
 // Hoja 2: Recibos
 $sheetRecibos = [['Cuenta', 'Recibo', 'Monto']];
@@ -113,10 +113,20 @@ foreach ($recibosDocs as $doc) {
         (float)$doc['monto'],
     ];
 }
-$xlsx->addSheet('Recibos', $sheetRecibos);
+$xlsxNomina->addSheet('Recibos', $sheetRecibos);
 
-// Hoja 3: Pensión
+if ($xlsxNomina->save($outputNomina)) {
+    echo "✓ Archivo Excel de Nómina generado: {$outputNomina}\n";
+} else {
+    echo "✗ Error al guardar el archivo Excel de Nómina.\n";
+}
+
+// 4. Generar Excel de Pensión (Archivo propio independiente)
 if ($pensionCount > 0) {
+    $outputPension = $outputDir . '/reporte_pension.xlsx';
+    echo "- Generando {$outputPension}...\n";
+
+    $xlsxPension = new SimpleXlsx();
     $sheetPension = [['Cuenta', 'Cheque', 'Monto']];
     foreach ($db->getPensiones() as $doc) {
         $sheetPension[] = [
@@ -125,11 +135,12 @@ if ($pensionCount > 0) {
             (float)$doc['monto'],
         ];
     }
-    $xlsx->addSheet('Pensión', $sheetPension);
+    $xlsxPension->addSheet('Pensión', $sheetPension);
+
+    if ($xlsxPension->save($outputPension)) {
+        echo "✓ Archivo Excel de Pensión generado: {$outputPension}\n";
+    } else {
+        echo "✗ Error al guardar el archivo Excel de Pensión.\n";
+    }
 }
 
-if ($xlsx->save($outputFile)) {
-    echo "✓ Archivo Excel generado exitosamente: {$outputFile}\n";
-} else {
-    echo "✗ Error al guardar el archivo Excel.\n";
-}
